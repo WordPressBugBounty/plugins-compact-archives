@@ -1,0 +1,1 @@
+# plugins-compact-archives
