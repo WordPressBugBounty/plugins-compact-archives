@@ -100,11 +100,11 @@ function get_compact_archive( $style = 'initial', $before = '<li>', $after = '</
 	$dates = wpbca_get_archive_data();
 
 	if ( empty( $dates ) ) {
-		return $before . __( 'Archive is empty' ) . $after;
+		return wp_kses_post( $before . __( 'Archive is empty' ) . $after );
 	}
 	$result = '';
 	foreach ( $dates as $year => $months ) {
-		$result .= $before . '<strong><a href="' . get_year_link( $year ) . '">' . esc_html( $year ) . '</a>: </strong> ';
+		$result .= $before . '<strong><a href="' . esc_url( get_year_link( $year ) ) . '">' . esc_html( $year ) . '</a>: </strong> ';
 		for ( $month = 1; $month <= 12; $month++ ) {
 			$month_has_posts = ( isset( $months[ $month ] ) );
 			$dummydate       = strtotime( "2001-$month-1" );
@@ -123,7 +123,7 @@ function get_compact_archive( $style = 'initial', $before = '<li>', $after = '</
 					break;
 			}
 			if ( $month_has_posts ) {
-				$result .= '<a href="' . get_month_link( $year, $month ) . '" title="' . esc_attr( date_i18n( 'F Y', $dummydate ) ) . '">' . esc_html( $month_abbrev ) . '</a> ';
+				$result .= '<a href="' . esc_url( get_month_link( $year, $month ) ) . '" title="' . esc_attr( date_i18n( 'F Y', $dummydate ) ) . '">' . esc_html( $month_abbrev ) . '</a> ';
 			} else {
 				$result .= '<span class="emptymonth">' . esc_html( $month_abbrev ) . '</span> ';
 			}
@@ -153,20 +153,59 @@ function get_compact_archive( $style = 'initial', $before = '<li>', $after = '</
 function compact_archives_shortcode( $atts ) {
 	$atts = shortcode_atts(
 		array(
-			'style'  => 'initial',
-			'before' => '<li>',
-			'after'  => '</li>',
+			'style'     => 'initial',
+			'before'    => '<li>',
+			'after'     => '</li>',
+			'classname' => '',
 		),
 		$atts
 	);
 
-	if ( '<li>' === $atts['before'] ) :
-		$wrap = '<ul style="list-style-type: none; margin-top: 10px; margin-bottom 20px;">';
-	endif;
+	// Validate style against allowlist.
+	$allowed_styles = array( 'initial', 'block', 'numeric' );
+	if ( ! in_array( $atts['style'], $allowed_styles, true ) ) {
+		$atts['style'] = 'initial';
+	}
 
-	if ( '</li>' === $atts['after'] ) :
-		$wrap_end = '</ul>';
-	endif;
+	// Allowed wrapper tags.
+	$allowed_tags = array( 'li', 'p', 'div', 'span' );
+
+	// Normalize input: trim, lowercase, decode HTML entities, strip </p> from editor.
+	$before_normalized = strtolower( trim( html_entity_decode( $atts['before'] ) ) );
+	$before_normalized = trim( str_ireplace( '</p>', '', $before_normalized ) );
+
+	// Extract tag name (strip < > / to support both "div" and "<div>").
+	$tag_name = preg_replace( '/[<>\/]/', '', $before_normalized );
+
+	if ( ! in_array( $tag_name, $allowed_tags, true ) ) {
+		$tag_name = 'li';
+	}
+
+	// Sanitize classname: split by space, sanitize each, rejoin.
+	$class_attr = '';
+	if ( ! empty( $atts['classname'] ) ) {
+		$classes = preg_split( '/\s+/', trim( $atts['classname'] ) );
+		$sanitized_classes = array_map( 'sanitize_html_class', $classes );
+		$sanitized_classes = array_filter( $sanitized_classes ); // Remove empty.
+		if ( ! empty( $sanitized_classes ) ) {
+			$class_attr = ' class="' . esc_attr( implode( ' ', $sanitized_classes ) ) . '"';
+		}
+	}
+
+	$wrap     = '';
+	$wrap_end = '';
+
+	if ( 'li' === $tag_name ) {
+		// For li, apply classname to the ul container.
+		$atts['before'] = '<' . $tag_name . '>';
+		$wrap           = '<ul' . $class_attr . ' style="list-style-type: none; margin-top: 10px; margin-bottom: 20px;">';
+		$wrap_end       = '</ul>';
+	} else {
+		// For other tags, apply classname to the before tag.
+		$atts['before'] = '<' . $tag_name . $class_attr . '>';
+	}
+
+	$atts['after'] = '</' . $tag_name . '>';
 
 	return $wrap . get_compact_archive( $atts['style'], $atts['before'], $atts['after'] ) . $wrap_end;
 }
@@ -310,6 +349,18 @@ function wpb_compact_archive_block_render_callback( $attributes, $content ) {
 		$attributes['compact_archive_title'] = '';
 	}
 
+	// Validate archive type against allowlist.
+	$allowed_types = array( 'initial', 'block', 'numeric' );
+	if ( ! in_array( $attributes['compact_archive_type'], $allowed_types, true ) ) {
+		$attributes['compact_archive_type'] = 'block';
+	}
+
+	// Validate text case against allowlist.
+	$allowed_text_cases = array( 'none', 'capitalize', 'uppercase' );
+	if ( ! in_array( $attributes['compact_archive_text_case'], $allowed_text_cases, true ) ) {
+		$attributes['compact_archive_text_case'] = 'none';
+	}
+
 	// Default styles.
 	$style = ( ! empty( $attributes['compact_archive_title'] ) ) ? 'list-style-type: none; margin-top: 10px; margin-bottom 20px;' : 'list-style-type: none; margin-top: 20px; margin-bottom 20px;';
 
@@ -320,5 +371,22 @@ function wpb_compact_archive_block_render_callback( $attributes, $content ) {
 		$style .= 'text-transform: uppercase;';
 	}
 
-	return ( ! empty( $attributes['compact_archive_title'] ) ? '<p>' . wp_kses_post( $attributes['compact_archive_title'] ) . '</p>' : '' ) . '<ul style="' . esc_attr( $style ) . '">' . get_compact_archive( $attributes['compact_archive_type'] ) . '</ul>';
+	// Sanitize title with restrictive allowlist matching RichText formatting controls.
+	$title_html = '';
+	if ( ! empty( $attributes['compact_archive_title'] ) ) {
+		$allowed_title_html = array(
+			'strong' => array(),
+			'b'      => array(),
+			'em'     => array(),
+			'i'      => array(),
+			'a'      => array(
+				'href'  => true,
+				'title' => true,
+				'rel'   => true,
+			),
+		);
+		$title_html = '<p>' . wp_kses( $attributes['compact_archive_title'], $allowed_title_html ) . '</p>';
+	}
+
+	return $title_html . '<ul style="' . esc_attr( $style ) . '">' . get_compact_archive( $attributes['compact_archive_type'] ) . '</ul>';
 }

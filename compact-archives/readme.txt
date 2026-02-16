@@ -1,8 +1,8 @@
 === Compact Archives ===
-Contributors: smub, noumaan, deb255
-Tags: archive, archives, yearly archive, montly archive, yearly, monthly, annually, archive by month, archive by year
-Tested up to: 6.6
-Stable tag: 4.1.0
+Contributors: smub, noumaan, _smartik_
+Tags: archive, archives, monthly archive, yearly archive, widget
+Tested up to: 6.9.1
+Stable tag: 4.1.1
 Requires PHP: 5.6
 Requires at least: 4.8
 License: GPL-2.0+
@@ -103,11 +103,19 @@ each line of the archive into a list item:
 
 = How do I get different layouts using shortcode? =
 
-The shortcode `[compact_archive]` works just like the template tag. It accepts three parameters which are style, before, and after.
+The shortcode `[compact_archive]` works just like the template tag. It accepts the following parameters:
 
-Using shortcode `[compact_archive style="block"]` will display compact archives in block.
+* `style` - Display format: `initial` (default), `block`, or `numeric`
+* `before` - Wrapper tag: `li` (default), `p`, `div`, or `span`. Can be written with or without angle brackets.
+* `classname` - Custom CSS class(es) to add to the container
 
-Using shortcode `[compact_archive style="numeric" before="<p>" after="</p>"]` will display compact archive in numeric form, wrapped in a paragraph tag.
+Examples:
+
+`[compact_archive style="block"]` - Display archives in block format.
+
+`[compact_archive style="numeric" before="p"]` - Display in numeric form, wrapped in paragraph tags.
+
+`[compact_archive before="div" classname="my-archive custom-class"]` - Wrap each line in a div with custom CSS classes.
 
 = How do I get different layouts using Compact Archive Widget in Sidebar? =
 
@@ -116,6 +124,10 @@ Compact Archive comes with a sidebar widget located Appearance -> Widgets. Drag 
 = Is There Any Scope for CSS Styling? =
 
 The year links at the start of each line are wrapped in <strong></strong> tags while months with no posts are wrapped with <span class="emptymonth"></span> so you can differentiate them visually using your style sheet.
+
+You can also use the `classname` attribute in the shortcode to add custom CSS classes:
+
+`[compact_archive classname="my-custom-archive"]`
 
 = What if My Site is in Another Language? =
 
@@ -130,6 +142,13 @@ Compact Archives also honours whatever kind of permalink pattern you have set.
 
 == Changelog ==
 
+= 4.1.1 =
+* Improved input validation for shortcode parameters.
+* Enhanced output sanitization.
+* Added URL escaping for archive links.
+* New: Added `classname` attribute to shortcode for custom CSS classes.
+* New: Shortcode `before` attribute now accepts tag names without brackets (e.g., `before="div"`).
+
 = 4.1.0 =
 * New: Support the block based Widget editor introduced in WordPress 5.8.
 
@@ -143,6 +162,10 @@ Compact Archives also honours whatever kind of permalink pattern you have set.
 Earlier changelog entries can be found in changelog.md.
 
 == Upgrade Notice ==
+
+= 4.1.1 =
+
+Maintenance release with security hardening. Update recommended.
 
 = 4.1.0 =
 
